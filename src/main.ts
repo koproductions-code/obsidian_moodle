@@ -1,99 +1,111 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+import { Notice, Plugin } from 'obsidian';
+import { DEFAULT_SETTINGS, MoodlePluginSettings, MoodleSettingTab } from './settings';
+import { MoodleView, MOODLE_VIEW_TYPE } from './MoodleView';
+import { authenticate } from './RWTHAuth';
+import { totp } from './totp';
+import { promptTotp } from './TotpModal';
 
-// Remember to rename these classes and interfaces!
-
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class MoodlePlugin extends Plugin {
+	settings: MoodlePluginSettings;
 
 	async onload() {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
+		this.registerView(MOODLE_VIEW_TYPE, (leaf) => new MoodleView(leaf, this));
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
+		this.addRibbonIcon('graduation-cap', 'Moodle Courses', async () => {
+			// If not authenticated, try logging in first
+			if (!this.settings.wstoken) {
+				const ok = await this.performLogin();
+				if (!ok) return;
 			}
+			this.activateView();
 		});
-		// This adds an editor command that can perform some operation on the current editor instance
+
 		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
+			id: 'open-moodle-courses',
+			name: 'Open Moodle Courses sidebar',
+			callback: () => this.activateView(),
 		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
+
 		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
-			}
+			id: 'moodle-login',
+			name: 'Login to RWTH Moodle',
+			callback: () => this.performLogin(),
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-
+		this.addSettingTab(new MoodleSettingTab(this.app, this));
 	}
 
 	onunload() {
+		this.app.workspace.detachLeavesOfType(MOODLE_VIEW_TYPE);
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MoodlePluginSettings>);
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
-}
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+	async activateView() {
+		const { workspace } = this.app;
+		let leaf = workspace.getLeavesOfType(MOODLE_VIEW_TYPE)[0];
+		if (!leaf) {
+			const rightLeaf = workspace.getRightLeaf(false);
+			leaf = rightLeaf ?? workspace.getLeaf(true);
+			await leaf.setViewState({ type: MOODLE_VIEW_TYPE, active: true });
+		}
+		workspace.revealLeaf(leaf);
 	}
 
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
+	/**
+	 * Run the full RWTH SSO authentication flow.
+	 * If totpSecret is configured, TOTP is auto-generated.
+	 * Otherwise, a modal prompts the user for a code.
+	 */
+	async performLogin(): Promise<boolean> {
+		const { username, password, totpSerial, totpSecret } = this.settings;
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+		if (!username || !password || !totpSerial) {
+			new Notice('Please configure RWTH credentials in Settings → Moodle Courses.');
+			return false;
+		}
+
+		let totpCode: string;
+		if (totpSecret) {
+			totpCode = totp(totpSecret);
+		} else {
+			const code = await promptTotp(this.app, totpSerial);
+			if (!code) {
+				new Notice('Login cancelled.');
+				return false;
+			}
+			totpCode = code;
+		}
+
+		try {
+			new Notice('Logging in to RWTH Moodle…');
+			const result = await authenticate(
+				username,
+				password,
+				totpSerial,
+				totpCode,
+				this.settings.cookies,
+			);
+
+			this.settings.wstoken = result.wstoken;
+			this.settings.userId = result.userId;
+			this.settings.cookies = result.cookies;
+			this.settings.sessionKey = result.sessionKey;
+			await this.saveSettings();
+
+			new Notice('Connected to RWTH Moodle!');
+			return true;
+		} catch (e) {
+			new Notice(`Login failed: ${(e as Error).message}`);
+			return false;
+		}
 	}
 }

@@ -1,8 +1,172 @@
-/*
+.moodle-view {
+	padding: 8px;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow-y: auto;
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.moodle-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8px;
+}
 
-If your plugin does not need CSS, delete this file.
+.moodle-title {
+	font-weight: 600;
+	font-size: 1em;
+}
 
-*/
+.moodle-header-buttons {
+	display: flex;
+	gap: 2px;
+}
+
+.moodle-header-btn {
+	background: none;
+	border: none;
+	cursor: pointer;
+	font-size: 1.1em;
+	color: var(--text-muted);
+	padding: 2px 6px;
+	border-radius: 4px;
+}
+
+.moodle-header-btn:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+.moodle-tree {
+	flex: 1;
+}
+
+details.moodle-course {
+	margin-bottom: 4px;
+}
+
+details.moodle-course > summary.moodle-course-summary {
+	font-weight: 600;
+	cursor: pointer;
+	list-style: none;
+	padding: 4px 6px;
+	border-radius: 4px;
+	color: var(--text-normal);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+details.moodle-course > summary.moodle-course-summary::before {
+	content: '▶ ';
+	font-size: 0.7em;
+	color: var(--text-muted);
+	flex-shrink: 0;
+	margin-right: 4px;
+}
+
+details.moodle-course[open] > summary.moodle-course-summary::before {
+	content: '▼ ';
+}
+
+details.moodle-course > summary.moodle-course-summary:hover {
+	background: var(--background-modifier-hover);
+}
+
+.moodle-course-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.moodle-hide-btn {
+	background: none;
+	border: none;
+	cursor: pointer;
+	font-size: 0.8em;
+	padding: 0 4px;
+	opacity: 0;
+	transition: opacity 0.15s;
+	flex-shrink: 0;
+}
+
+details.moodle-course > summary.moodle-course-summary:hover .moodle-hide-btn {
+	opacity: 1;
+}
+
+details.moodle-course-hidden {
+	opacity: 0.5;
+}
+
+details.moodle-section {
+	margin: 2px 0 2px 12px;
+}
+
+details.moodle-section > summary.moodle-section-summary {
+	cursor: pointer;
+	list-style: none;
+	padding: 3px 4px;
+	border-radius: 4px;
+	color: var(--text-muted);
+	font-size: 0.9em;
+}
+
+details.moodle-section > summary.moodle-section-summary::before {
+	content: '▶ ';
+	font-size: 0.65em;
+}
+
+details.moodle-section[open] > summary.moodle-section-summary::before {
+	content: '▼ ';
+}
+
+details.moodle-section > summary.moodle-section-summary:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.moodle-module {
+	padding: 2px 4px 2px 24px;
+	font-size: 0.88em;
+}
+
+.moodle-module a,
+.moodle-module .moodle-module-link {
+	color: var(--text-normal);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.moodle-module a:hover,
+.moodle-module .moodle-module-link:hover {
+	color: var(--interactive-accent);
+	text-decoration: underline;
+}
+
+.moodle-loading,
+.moodle-empty {
+	color: var(--text-muted);
+	font-size: 0.9em;
+	padding: 4px 8px;
+}
+
+.moodle-error {
+	color: var(--text-error);
+	font-size: 0.9em;
+	padding: 4px 8px;
+}
+
+.moodle-rename-input {
+	width: 100%;
+	font-size: inherit;
+	font-weight: inherit;
+	font-family: inherit;
+	background: var(--background-modifier-form-field);
+	color: var(--text-normal);
+	border: 1px solid var(--interactive-accent);
+	border-radius: 3px;
+	padding: 2px 4px;
+	outline: none;
+}

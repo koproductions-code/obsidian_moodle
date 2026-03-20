@@ -1,0 +1,182 @@
+import { ItemView, Notice, WorkspaceLeaf, normalizePath } from 'obsidian';
+import { MoodleCourse, MoodleSection, getCourses, getCourseContents, downloadFile } from './MoodleApi';
+import { buildCourseTree, renderSections } from './MoodleTree';
+import MoodlePlugin from './main';
+
+export const MOODLE_VIEW_TYPE = 'moodle-courses';
+
+export class MoodleView extends ItemView {
+	private plugin: MoodlePlugin;
+	private sectionsMap: Map<number, MoodleSection[]> = new Map();
+	private courses: MoodleCourse[] = [];
+	private showHidden = false;
+	private treeEl: HTMLElement;
+	private showHiddenBtn: HTMLButtonElement;
+
+	constructor(leaf: WorkspaceLeaf, plugin: MoodlePlugin) {
+		super(leaf);
+		this.plugin = plugin;
+	}
+
+	getViewType(): string {
+		return MOODLE_VIEW_TYPE;
+	}
+
+	getDisplayText(): string {
+		return 'Moodle Courses';
+	}
+
+	getIcon(): string {
+		return 'graduation-cap';
+	}
+
+	async onOpen(): Promise<void> {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass('moodle-view');
+
+		const header = contentEl.createDiv({ cls: 'moodle-header' });
+		header.createEl('span', { text: 'Moodle Courses', cls: 'moodle-title' });
+
+		const buttons = header.createDiv({ cls: 'moodle-header-buttons' });
+
+		this.showHiddenBtn = buttons.createEl('button', {
+			text: '👁',
+			cls: 'moodle-header-btn',
+			title: 'Show hidden courses',
+		});
+		this.showHiddenBtn.onclick = () => {
+			this.showHidden = !this.showHidden;
+			this.showHiddenBtn.setText(this.showHidden ? '🙈' : '👁');
+			this.showHiddenBtn.title = this.showHidden ? 'Hide hidden courses' : 'Show hidden courses';
+			this.renderTree();
+		};
+
+		const refreshBtn = buttons.createEl('button', {
+			text: '↻',
+			cls: 'moodle-header-btn',
+			title: 'Refresh',
+		});
+		refreshBtn.onclick = () => this.refresh();
+
+		this.treeEl = contentEl.createDiv({ cls: 'moodle-tree' });
+
+		await this.refresh();
+	}
+
+	async onClose(): Promise<void> {
+		this.contentEl.empty();
+	}
+
+	async refresh(): Promise<void> {
+		this.sectionsMap.clear();
+		this.treeEl.empty();
+
+		const { wstoken, userId } = this.plugin.settings;
+
+		if (!wstoken || !userId) {
+			this.treeEl.createEl('p', {
+				text: 'Not connected. Go to Settings → Moodle Courses and log in.',
+				cls: 'moodle-empty',
+			});
+			return;
+		}
+
+		this.treeEl.createEl('p', { text: 'Loading courses…', cls: 'moodle-loading' });
+
+		try {
+			this.courses = await getCourses(wstoken, userId);
+		} catch (e) {
+			this.treeEl.empty();
+			const msg = (e as Error).message;
+			if (msg.includes('expired') || msg.includes('Invalid token')) {
+				this.treeEl.createEl('p', {
+					text: 'Session expired. Click the graduation cap icon or log in again in Settings.',
+					cls: 'moodle-error',
+				});
+			} else {
+				this.treeEl.createEl('p', {
+					text: `Failed to load courses: ${msg}`,
+					cls: 'moodle-error',
+				});
+			}
+			return;
+		}
+
+		this.renderTree();
+	}
+
+	private renderTree(): void {
+		this.treeEl.empty();
+		buildCourseTree(this.treeEl, this.courses, this.sectionsMap, {
+			courseRenames: this.plugin.settings.courseRenames,
+			hiddenCourses: this.plugin.settings.hiddenCourses,
+			showHidden: this.showHidden,
+			onExpandCourse: (course, detailsEl) => this.loadCourseSections(course, detailsEl),
+			onFileClick: (filename, fileurl) => this.handleFileClick(filename, fileurl),
+			onCourseRename: (courseId, newName) => this.handleCourseRename(courseId, newName),
+			onCourseHide: (courseId, hidden) => this.handleCourseHide(courseId, hidden),
+		});
+	}
+
+	private async loadCourseSections(course: MoodleCourse, detailsEl: HTMLDetailsElement): Promise<void> {
+		const contentEl = detailsEl.querySelector('.moodle-course-content') as HTMLElement;
+		if (!contentEl) return;
+
+		const { wstoken } = this.plugin.settings;
+		try {
+			const sections = await getCourseContents(wstoken, course.id);
+			this.sectionsMap.set(course.id, sections);
+			renderSections(contentEl, sections, (filename, fileurl) => this.handleFileClick(filename, fileurl));
+		} catch (e) {
+			contentEl.empty();
+			contentEl.createEl('p', { text: `Error: ${(e as Error).message}`, cls: 'moodle-error' });
+			new Notice(`Moodle: failed to load ${course.fullname}`);
+		}
+	}
+
+	private async handleCourseRename(courseId: number, newName: string): Promise<void> {
+		const key = String(courseId);
+		if (newName) {
+			this.plugin.settings.courseRenames[key] = newName;
+		} else {
+			delete this.plugin.settings.courseRenames[key];
+		}
+		await this.plugin.saveSettings();
+	}
+
+	private async handleCourseHide(courseId: number, hidden: boolean): Promise<void> {
+		const key = String(courseId);
+		if (hidden) {
+			this.plugin.settings.hiddenCourses[key] = true;
+		} else {
+			delete this.plugin.settings.hiddenCourses[key];
+		}
+		await this.plugin.saveSettings();
+		this.renderTree();
+	}
+
+	private async handleFileClick(filename: string, fileurl: string): Promise<void> {
+		const { wstoken } = this.plugin.settings;
+		const vault = this.app.vault;
+
+		const activeFile = this.app.workspace.getActiveFile();
+		const folder = activeFile?.parent?.path ?? '';
+
+		const targetPath = normalizePath(folder ? `${folder}/${filename}` : filename);
+
+		if (vault.getAbstractFileByPath(targetPath)) {
+			new Notice(`Already exists: ${filename}`);
+			return;
+		}
+
+		try {
+			new Notice(`Downloading ${filename}…`);
+			const data = await downloadFile(wstoken, fileurl);
+			await vault.createBinary(targetPath, data);
+			new Notice(`Saved: ${filename}`);
+		} catch (e) {
+			new Notice(`Failed to download ${filename}: ${(e as Error).message}`);
+		}
+	}
+}
