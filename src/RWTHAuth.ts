@@ -21,8 +21,8 @@ function extractSessionKey(html: string): string {
 }
 
 function inputValue(doc: Document, name: string): string | null {
-	const el = doc.querySelector(`input[name="${name}"]`) as HTMLInputElement | null;
-	return el?.value ?? null;
+	const el = doc.querySelector(`input[name="${name}"]`);
+	return el?.getAttribute('value') ?? null;
 }
 
 /**
@@ -198,7 +198,7 @@ async function extractWsToken(client: HttpClient): Promise<string> {
 	const tokenMatch = location.match(/token=([A-Za-z0-9+/=]+)/);
 	if (!tokenMatch?.[1]) throw new Error('Could not find token in mobile launch redirect');
 
-	const decoded = Buffer.from(tokenMatch[1], 'base64').toString('utf-8');
+	const decoded = atob(tokenMatch[1]);
 	const parts = decoded.split(':::');
 	if (parts.length < 2 || !parts[1]) throw new Error('Invalid token format from mobile launch');
 

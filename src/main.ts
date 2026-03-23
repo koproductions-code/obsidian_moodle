@@ -13,32 +13,29 @@ export default class MoodlePlugin extends Plugin {
 
 		this.registerView(MOODLE_VIEW_TYPE, (leaf) => new MoodleView(leaf, this));
 
-		this.addRibbonIcon('graduation-cap', 'Moodle Courses', async () => {
+		this.addRibbonIcon('graduation-cap', 'Moodle courses', async () => {
 			// If not authenticated, try logging in first
 			if (!this.settings.wstoken) {
 				const ok = await this.performLogin();
 				if (!ok) return;
 			}
-			this.activateView();
+			await this.activateView();
 		});
 
 		this.addCommand({
-			id: 'open-moodle-courses',
-			name: 'Open Moodle Courses sidebar',
-			callback: () => this.activateView(),
+			id: 'open-sidebar',
+			name: 'Open courses sidebar',
+			callback: () => { void this.activateView(); },
 		});
 
 		this.addCommand({
-			id: 'moodle-login',
+			id: 'login',
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- RWTH and Moodle are proper nouns
 			name: 'Login to RWTH Moodle',
-			callback: () => this.performLogin(),
+			callback: () => { void this.performLogin(); },
 		});
 
 		this.addSettingTab(new MoodleSettingTab(this.app, this));
-	}
-
-	onunload() {
-		this.app.workspace.detachLeavesOfType(MOODLE_VIEW_TYPE);
 	}
 
 	async loadSettings() {
@@ -57,7 +54,7 @@ export default class MoodlePlugin extends Plugin {
 			leaf = rightLeaf ?? workspace.getLeaf(true);
 			await leaf.setViewState({ type: MOODLE_VIEW_TYPE, active: true });
 		}
-		workspace.revealLeaf(leaf);
+		void workspace.revealLeaf(leaf);
 	}
 
 	/**
@@ -69,13 +66,14 @@ export default class MoodlePlugin extends Plugin {
 		const { username, password, totpSerial, totpSecret } = this.settings;
 
 		if (!username || !password || !totpSerial) {
-			new Notice('Please configure RWTH credentials in Settings → Moodle Courses.');
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- RWTH is an acronym
+			new Notice('Please configure RWTH credentials in settings.');
 			return false;
 		}
 
 		let totpCode: string;
 		if (totpSecret) {
-			totpCode = totp(totpSecret);
+			totpCode = await totp(totpSecret);
 		} else {
 			const code = await promptTotp(this.app, totpSerial);
 			if (!code) {
@@ -86,6 +84,7 @@ export default class MoodlePlugin extends Plugin {
 		}
 
 		try {
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- RWTH and Moodle are proper nouns
 			new Notice('Logging in to RWTH Moodle…');
 			const result = await authenticate(
 				username,
@@ -101,6 +100,7 @@ export default class MoodlePlugin extends Plugin {
 			this.settings.sessionKey = result.sessionKey;
 			await this.saveSettings();
 
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- proper nouns
 			new Notice('Connected to RWTH Moodle!');
 			return true;
 		} catch (e) {

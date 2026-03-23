@@ -1,8 +1,6 @@
-import * as crypto from 'crypto';
-
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
-function base32Decode(input: string): Buffer {
+function base32Decode(input: string): Uint8Array {
 	const clean = input.replace(/=+$/, '');
 
 	let bits = '';
@@ -17,18 +15,31 @@ function base32Decode(input: string): Buffer {
 		bytes.push(parseInt(bits.substring(i, i + 8), 2));
 	}
 
-	return Buffer.from(bytes);
+	return new Uint8Array(bytes);
 }
 
-function hotp(key: string, counter: number, digits = 6): string {
+async function hmacSha1(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
+	const cryptoKey = await crypto.subtle.importKey(
+		'raw',
+		key,
+		{ name: 'HMAC', hash: 'SHA-1' },
+		false,
+		['sign'],
+	);
+	const sig = await crypto.subtle.sign('HMAC', cryptoKey, data);
+	return new Uint8Array(sig);
+}
+
+async function hotp(key: string, counter: number, digits = 6): Promise<string> {
 	const paddedKey = key.toUpperCase() + '='.repeat((8 - (key.length % 8)) % 8);
 	const keyBuffer = base32Decode(paddedKey);
 
-	const counterBuffer = Buffer.alloc(8);
-	counterBuffer.writeUInt32BE(Math.floor(counter / 0x100000000), 0);
-	counterBuffer.writeUInt32BE(counter >>> 0, 4);
+	const counterBuffer = new ArrayBuffer(8);
+	const view = new DataView(counterBuffer);
+	view.setUint32(0, Math.floor(counter / 0x100000000));
+	view.setUint32(4, counter >>> 0);
 
-	const mac = crypto.createHmac('sha1', keyBuffer).update(counterBuffer).digest();
+	const mac = await hmacSha1(keyBuffer, new Uint8Array(counterBuffer));
 
 	const offset = mac[mac.length - 1]! & 0x0f;
 	const binary =
@@ -40,7 +51,7 @@ function hotp(key: string, counter: number, digits = 6): string {
 	return (binary % Math.pow(10, digits)).toString().padStart(digits, '0');
 }
 
-export function totp(key: string, timeStep = 30, digits = 6): string {
+export async function totp(key: string, timeStep = 30, digits = 6): Promise<string> {
 	const counter = Math.floor(Date.now() / 1000 / timeStep);
 	return hotp(key, counter, digits);
 }

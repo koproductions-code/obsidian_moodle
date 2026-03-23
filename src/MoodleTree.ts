@@ -135,7 +135,7 @@ export function buildCourseTree(
 	}
 
 	for (const course of visibleCourses) {
-		const details = document.createElement('details') as HTMLDetailsElement;
+		const details = document.createElement('details');
 		details.className = 'moodle-course';
 
 		const hidden = isHidden(course);

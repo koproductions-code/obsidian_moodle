@@ -23,7 +23,7 @@ export class MoodleView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return 'Moodle Courses';
+		return 'Moodle courses';
 	}
 
 	getIcon(): string {
@@ -36,7 +36,7 @@ export class MoodleView extends ItemView {
 		contentEl.addClass('moodle-view');
 
 		const header = contentEl.createDiv({ cls: 'moodle-header' });
-		header.createEl('span', { text: 'Moodle Courses', cls: 'moodle-title' });
+		header.createEl('span', { text: 'Moodle courses', cls: 'moodle-title' });
 
 		const buttons = header.createDiv({ cls: 'moodle-header-buttons' });
 
@@ -57,7 +57,7 @@ export class MoodleView extends ItemView {
 			cls: 'moodle-header-btn',
 			title: 'Refresh',
 		});
-		refreshBtn.onclick = () => this.refresh();
+		refreshBtn.onclick = () => { void this.refresh(); };
 
 		this.treeEl = contentEl.createDiv({ cls: 'moodle-tree' });
 
@@ -76,7 +76,7 @@ export class MoodleView extends ItemView {
 
 		if (!wstoken || !userId) {
 			this.treeEl.createEl('p', {
-				text: 'Not connected. Go to Settings → Moodle Courses and log in.',
+				text: 'Not connected. Go to settings and log in.',
 				cls: 'moodle-empty',
 			});
 			return;
@@ -91,7 +91,7 @@ export class MoodleView extends ItemView {
 			const msg = (e as Error).message;
 			if (msg.includes('expired') || msg.includes('Invalid token')) {
 				this.treeEl.createEl('p', {
-					text: 'Session expired. Click the graduation cap icon or log in again in Settings.',
+					text: 'Session expired. Click the graduation cap icon or log in again in settings.',
 					cls: 'moodle-error',
 				});
 			} else {
@@ -112,10 +112,10 @@ export class MoodleView extends ItemView {
 			courseRenames: this.plugin.settings.courseRenames,
 			hiddenCourses: this.plugin.settings.hiddenCourses,
 			showHidden: this.showHidden,
-			onExpandCourse: (course, detailsEl) => this.loadCourseSections(course, detailsEl),
-			onFileClick: (filename, fileurl) => this.handleFileClick(filename, fileurl),
-			onCourseRename: (courseId, newName) => this.handleCourseRename(courseId, newName),
-			onCourseHide: (courseId, hidden) => this.handleCourseHide(courseId, hidden),
+			onExpandCourse: (course, detailsEl) => { void this.loadCourseSections(course, detailsEl); },
+			onFileClick: (filename, fileurl) => { void this.handleFileClick(filename, fileurl); },
+			onCourseRename: (courseId, newName) => { void this.handleCourseRename(courseId, newName); },
+			onCourseHide: (courseId, hidden) => { void this.handleCourseHide(courseId, hidden); },
 		});
 	}
 
@@ -127,7 +127,7 @@ export class MoodleView extends ItemView {
 		try {
 			const sections = await getCourseContents(wstoken, course.id);
 			this.sectionsMap.set(course.id, sections);
-			renderSections(contentEl, sections, (filename, fileurl) => this.handleFileClick(filename, fileurl));
+			renderSections(contentEl, sections, (filename, fileurl) => { void this.handleFileClick(filename, fileurl); });
 		} catch (e) {
 			contentEl.empty();
 			contentEl.createEl('p', { text: `Error: ${(e as Error).message}`, cls: 'moodle-error' });

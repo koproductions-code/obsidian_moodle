@@ -19,14 +19,16 @@ class TotpModal extends Modal {
 
 	onOpen(): void {
 		const { contentEl } = this;
-		contentEl.createEl('h2', { text: 'RWTH TOTP Code' });
+		// eslint-disable-next-line obsidianmd/ui/sentence-case -- RWTH and TOTP are acronyms
+		contentEl.createEl('h2', { text: 'RWTH TOTP code' });
 		contentEl.createEl('p', {
 			text: `Enter the TOTP code for generator ${this.totpSerial}:`,
 		});
 
 		let value = '';
 		new Setting(contentEl)
-			.setName('TOTP Code')
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- TOTP is an acronym
+			.setName('TOTP code')
 			.addText(text => {
 				text.setPlaceholder('123456');
 				text.onChange(v => { value = v; });

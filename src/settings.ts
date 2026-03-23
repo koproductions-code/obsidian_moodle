@@ -38,22 +38,24 @@ export class MoodleSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		containerEl.createEl('h2', { text: 'Moodle Courses' });
+
+		new Setting(containerEl).setName('Connection').setHeading();
 
 		// Status
 		if (this.plugin.settings.wstoken) {
-			const status = containerEl.createDiv({ cls: 'moodle-settings-status' });
+			const status = containerEl.createDiv({ cls: 'moodle-settings-status moodle-settings-connected' });
 			status.createSpan({ text: 'Connected to moodle.rwth-aachen.de' });
-			status.style.color = 'var(--text-success)';
-			status.style.marginBottom = '12px';
 		}
 
-		containerEl.createEl('h3', { text: 'RWTH SSO Credentials' });
+		// eslint-disable-next-line obsidianmd/ui/sentence-case -- RWTH and SSO are acronyms
+		new Setting(containerEl).setName('RWTH SSO credentials').setHeading();
 
 		new Setting(containerEl)
 			.setName('Username')
-			.setDesc('Your RWTH Single Sign-On username')
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- RWTH is an acronym
+			.setDesc('Your RWTH single sign-on username')
 			.addText(text => text
+				// eslint-disable-next-line obsidianmd/ui/sentence-case -- example username
 				.setPlaceholder('ab123456')
 				.setValue(this.plugin.settings.username)
 				.onChange(async (value) => {
@@ -75,6 +77,7 @@ export class MoodleSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- TOTP is an acronym
 			.setName('TOTP serial number')
 			.setDesc('From https://idm.rwth-aachen.de/selfservice/MFATokenManager')
 			.addText(text => text
@@ -86,7 +89,9 @@ export class MoodleSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- TOTP is an acronym
 			.setName('TOTP secret (optional)')
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- TOTP is an acronym
 			.setDesc('If set, TOTP codes are generated automatically. Otherwise you will be prompted each time.')
 			.addText(text => {
 				text.inputEl.type = 'password';
@@ -106,6 +111,7 @@ export class MoodleSettingTab extends PluginSettingTab {
 				.onClick(async () => {
 					const { username, password, totpSerial } = this.plugin.settings;
 					if (!username || !password || !totpSerial) {
+						// eslint-disable-next-line obsidianmd/ui/sentence-case -- TOTP is an acronym
 						new Notice('Please fill in username, password, and TOTP serial.');
 						return;
 					}
@@ -113,6 +119,7 @@ export class MoodleSettingTab extends PluginSettingTab {
 					btn.setButtonText('Logging in…');
 					try {
 						await this.plugin.performLogin();
+						// eslint-disable-next-line obsidianmd/ui/sentence-case -- proper nouns
 						new Notice('Connected to RWTH Moodle!');
 						this.display();
 					} catch (e) {

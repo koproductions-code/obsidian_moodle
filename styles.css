@@ -158,6 +158,11 @@ details.moodle-section > summary.moodle-section-summary:hover {
 	padding: 4px 8px;
 }
 
+.moodle-settings-connected {
+	color: var(--text-success);
+	margin-bottom: 12px;
+}
+
 .moodle-rename-input {
 	width: 100%;
 	font-size: inherit;
