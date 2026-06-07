@@ -5,5 +5,5 @@
 	"minAppVersion": "0.15.0",
 	"description": "Browse Moodle course documents in a sidebar tree.",
 	"author": "koproductions",
-	"isDesktopOnly": false
+	"isDesktopOnly": true
 }

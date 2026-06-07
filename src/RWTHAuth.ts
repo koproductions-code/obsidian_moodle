@@ -1,4 +1,4 @@
-import { HttpClient } from './httpClient';
+import { HttpClient, CookieJar } from './httpClient';
 
 const MOODLE_BASE = 'https://moodle.rwth-aachen.de';
 
@@ -6,7 +6,7 @@ export interface AuthResult {
 	wstoken: string;
 	userId: number;
 	privateAccessKey: string;
-	cookies: Record<string, string>;
+	cookies: CookieJar;
 	sessionKey: string;
 }
 
@@ -41,7 +41,7 @@ export async function authenticate(
 	password: string,
 	totpSerial: string,
 	totpCode: string,
-	cachedCookies?: Record<string, string>,
+	cachedCookies?: CookieJar,
 ): Promise<AuthResult> {
 	const client = new HttpClient();
 

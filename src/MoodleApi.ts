@@ -1,6 +1,18 @@
 import { requestUrl } from 'obsidian';
 
 const MOODLE_BASE = 'https://moodle.rwth-aachen.de';
+const MOODLE_HOST = new URL(MOODLE_BASE).hostname;
+
+/**
+ * Thrown when Moodle rejects the web-service token (expired/invalid).
+ * Callers can catch this to clear the stored token and prompt re-login.
+ */
+export class MoodleTokenError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'MoodleTokenError';
+	}
+}
 
 export interface MoodleCourse {
 	id: number;
@@ -64,9 +76,14 @@ async function moodlePost(
 		throw new Error(`Moodle API HTTP ${resp.status}`);
 	}
 
-	const data = resp.json as { exception?: string; message?: string };
+	const data = resp.json as { exception?: string; errorcode?: string; message?: string };
 	if (data && typeof data === 'object' && 'exception' in data) {
-		throw new Error(data.message ?? data.exception ?? 'Moodle API error');
+		const code = data.errorcode ?? data.exception ?? '';
+		const message = data.message ?? data.exception ?? 'Moodle API error';
+		if (code === 'invalidtoken' || code === 'accessexception' || /token/i.test(message)) {
+			throw new MoodleTokenError(message);
+		}
+		throw new Error(message);
 	}
 
 	return data;
@@ -113,6 +130,18 @@ export async function getCourseContents(wstoken: string, courseId: number): Prom
  * Download a file from Moodle by appending the wstoken to its pluginfile URL.
  */
 export async function downloadFile(wstoken: string, fileUrl: string): Promise<ArrayBuffer> {
+	// Only ever attach the token to Moodle's own host, so a stray off-domain
+	// fileurl in the course data can't exfiltrate it.
+	let host: string;
+	try {
+		host = new URL(fileUrl).hostname;
+	} catch {
+		throw new Error('Invalid file URL');
+	}
+	if (host !== MOODLE_HOST) {
+		throw new Error(`Refusing to send token to non-Moodle host: ${host}`);
+	}
+
 	const separator = fileUrl.includes('?') ? '&' : '?';
 	const url = `${fileUrl}${separator}token=${wstoken}`;
 

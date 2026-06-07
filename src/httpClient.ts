@@ -12,6 +12,15 @@ export interface HttpResponse {
 	finalUrl: string;
 }
 
+interface CookieEntry {
+	value: string;
+	domain: string;   // lowercased host, no leading dot
+	hostOnly: boolean; // true when the Set-Cookie had no Domain attribute
+}
+
+/** Persisted cookie jar shape: domain → { cookieName → value }. */
+export type CookieJar = Record<string, Record<string, string>>;
+
 /**
  * HTTP client for the RWTH SSO flow.
  *
@@ -23,7 +32,7 @@ export interface HttpResponse {
  * `requestUrl` is still used for simple Moodle API calls (via `simpleGet`).
  */
 export class HttpClient {
-	private cookies: Map<string, string> = new Map();
+	private cookies: Map<string, CookieEntry> = new Map(); // key: `${domain}|${name}`
 
 	// ----------------------------------------------------------------
 	// Node-based request (used for SSO flow)
@@ -46,7 +55,7 @@ export class HttpClient {
 		const headers: Record<string, string> = {
 			'User-Agent': 'ObsidianMoodlePlugin/1.0',
 		};
-		const cookieStr = this.getCookieString();
+		const cookieStr = this.getCookieString(parsed.hostname);
 		if (cookieStr) headers['Cookie'] = cookieStr;
 		if (body !== undefined && contentType) {
 			headers['Content-Type'] = contentType;
@@ -78,7 +87,7 @@ export class HttpClient {
 						if (setCookies) {
 							(respHeaders as Record<string, unknown>)['set-cookie'] = setCookies;
 						}
-						this.updateCookies(respHeaders);
+						this.updateCookies(respHeaders, parsed.hostname);
 
 						resolve({
 							statusCode: res.statusCode ?? 0,
@@ -168,14 +177,26 @@ export class HttpClient {
 	// Cookie management
 	// ----------------------------------------------------------------
 
-	getCookieString(): string {
+	/** Build the Cookie header for a request to `host`, scoped by domain. */
+	getCookieString(host: string): string {
 		if (this.cookies.size === 0) return '';
-		return Array.from(this.cookies.entries())
-			.map(([k, v]) => `${k}=${v}`)
-			.join('; ');
+		const h = host.toLowerCase();
+		const parts: string[] = [];
+		for (const [key, entry] of this.cookies) {
+			if (this.domainMatches(h, entry)) {
+				const name = key.slice(key.indexOf('|') + 1);
+				parts.push(`${name}=${entry.value}`);
+			}
+		}
+		return parts.join('; ');
 	}
 
-	private updateCookies(headers: Record<string, string>): void {
+	private domainMatches(host: string, entry: CookieEntry): boolean {
+		if (entry.hostOnly) return host === entry.domain;
+		return host === entry.domain || host.endsWith(`.${entry.domain}`);
+	}
+
+	private updateCookies(headers: Record<string, string>, requestHost: string): void {
 		const rawValue: unknown = headers['set-cookie'] ?? headers['Set-Cookie'];
 		if (!rawValue) return;
 
@@ -188,25 +209,54 @@ export class HttpClient {
 			return;
 		}
 
+		const reqHost = requestHost.toLowerCase();
 		for (const cookie of cookieStrings) {
-			const nameValue = cookie.split(';')[0];
+			const segments = cookie.split(';');
+			const nameValue = segments[0];
 			if (!nameValue) continue;
 			const eqIdx = nameValue.indexOf('=');
 			if (eqIdx <= 0) continue;
-			this.cookies.set(
-				nameValue.substring(0, eqIdx).trim(),
-				nameValue.substring(eqIdx + 1).trim(),
-			);
+			const name = nameValue.substring(0, eqIdx).trim();
+			const value = nameValue.substring(eqIdx + 1).trim();
+
+			// Scope the cookie: an explicit Domain attribute makes it a domain
+			// cookie (subdomain-matchable); otherwise it's host-only.
+			let domain = reqHost;
+			let hostOnly = true;
+			for (const attr of segments.slice(1)) {
+				const eq = attr.indexOf('=');
+				if (eq === -1) continue;
+				if (attr.substring(0, eq).trim().toLowerCase() === 'domain') {
+					const attrVal = attr.substring(eq + 1).trim();
+					if (attrVal) {
+						domain = attrVal.toLowerCase().replace(/^\./, '');
+						hostOnly = false;
+					}
+				}
+			}
+
+			this.cookies.set(`${domain}|${name}`, { value, domain, hostOnly });
 		}
 	}
 
-	exportCookies(): Record<string, string> {
-		return Object.fromEntries(this.cookies);
+	exportCookies(): CookieJar {
+		const out: CookieJar = {};
+		for (const [key, entry] of this.cookies) {
+			const name = key.slice(key.indexOf('|') + 1);
+			(out[entry.domain] ??= {})[name] = entry.value;
+		}
+		return out;
 	}
 
-	importCookies(cookies: Record<string, string>): void {
-		for (const [k, v] of Object.entries(cookies)) {
-			this.cookies.set(k, v);
+	importCookies(stored: CookieJar): void {
+		for (const [domain, cookies] of Object.entries(stored)) {
+			// Ignore a legacy flat { name: value } jar (no domain info) — the
+			// values are strings, not objects, so a one-time re-login is needed.
+			if (typeof cookies !== 'object' || cookies === null) continue;
+			const d = domain.toLowerCase();
+			for (const [name, value] of Object.entries(cookies)) {
+				this.cookies.set(`${d}|${name}`, { value, domain: d, hostOnly: true });
+			}
 		}
 	}
 

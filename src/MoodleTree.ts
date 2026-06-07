@@ -8,7 +8,7 @@ export interface TreeOptions {
 	courseRenames: Record<string, string>;
 	hiddenCourses: Record<string, boolean>;
 	showHidden: boolean;
-	onExpandCourse: (course: MoodleCourse, detailsEl: HTMLDetailsElement) => void;
+	onExpandCourse: (course: MoodleCourse, detailsEl: HTMLDetailsElement) => void | Promise<void>;
 	onFileClick: FileClickHandler;
 	onCourseRename: CourseRenameHandler;
 	onCourseHide: CourseHideHandler;
@@ -171,12 +171,17 @@ export function buildCourseTree(
 			renderSections(contentEl, sections, opts.onFileClick);
 		} else {
 			const loading = contentEl.createEl('p', { text: 'Loading…', cls: 'moodle-loading' });
+			// Not `{ once: true }`: if a load fails (sectionsMap stays unset), the
+			// user can collapse and re-open the course to retry.
+			let loadInflight = false;
 			details.addEventListener('toggle', () => {
-				if (details.open && !sectionsMap.has(course.id)) {
+				if (details.open && !sectionsMap.has(course.id) && !loadInflight) {
+					loadInflight = true;
 					loading.setText('Loading…');
-					opts.onExpandCourse(course, details);
+					void Promise.resolve(opts.onExpandCourse(course, details))
+						.finally(() => { loadInflight = false; });
 				}
-			}, { once: true });
+			});
 		}
 
 		container.appendChild(details);

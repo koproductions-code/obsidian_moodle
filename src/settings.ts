@@ -1,5 +1,6 @@
 import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import MoodlePlugin from './main';
+import { CookieJar } from './httpClient';
 
 export interface MoodlePluginSettings {
 	username: string;
@@ -8,7 +9,7 @@ export interface MoodlePluginSettings {
 	totpSecret: string;
 	wstoken: string;
 	userId: number;
-	cookies: Record<string, string>;
+	cookies: CookieJar;
 	sessionKey: string;
 	courseRenames: Record<string, string>; // courseId → custom display name
 	hiddenCourses: Record<string, boolean>; // courseId → true if user-hidden
@@ -117,13 +118,11 @@ export class MoodleSettingTab extends PluginSettingTab {
 					}
 					btn.setDisabled(true);
 					btn.setButtonText('Logging in…');
-					try {
-						await this.plugin.performLogin();
-						// eslint-disable-next-line obsidianmd/ui/sentence-case -- proper nouns
-						new Notice('Connected to RWTH Moodle!');
+					// performLogin shows its own success/failure Notice and never throws.
+					const ok = await this.plugin.performLogin();
+					if (ok) {
 						this.display();
-					} catch (e) {
-						new Notice(`Login failed: ${(e as Error).message}`);
+					} else {
 						btn.setDisabled(false);
 						btn.setButtonText('Login');
 					}

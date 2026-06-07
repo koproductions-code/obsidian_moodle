@@ -1,5 +1,5 @@
 import { ItemView, Notice, WorkspaceLeaf, normalizePath } from 'obsidian';
-import { MoodleCourse, MoodleSection, getCourses, getCourseContents, downloadFile } from './MoodleApi';
+import { MoodleCourse, MoodleSection, getCourses, getCourseContents, downloadFile, MoodleTokenError } from './MoodleApi';
 import { buildCourseTree, renderSections } from './MoodleTree';
 import MoodlePlugin from './main';
 
@@ -88,15 +88,15 @@ export class MoodleView extends ItemView {
 			this.courses = await getCourses(wstoken, userId);
 		} catch (e) {
 			this.treeEl.empty();
-			const msg = (e as Error).message;
-			if (msg.includes('expired') || msg.includes('Invalid token')) {
+			if (e instanceof MoodleTokenError) {
+				await this.clearStaleToken();
 				this.treeEl.createEl('p', {
 					text: 'Session expired. Click the graduation cap icon or log in again in settings.',
 					cls: 'moodle-error',
 				});
 			} else {
 				this.treeEl.createEl('p', {
-					text: `Failed to load courses: ${msg}`,
+					text: `Failed to load courses: ${(e as Error).message}`,
 					cls: 'moodle-error',
 				});
 			}
@@ -112,7 +112,7 @@ export class MoodleView extends ItemView {
 			courseRenames: this.plugin.settings.courseRenames,
 			hiddenCourses: this.plugin.settings.hiddenCourses,
 			showHidden: this.showHidden,
-			onExpandCourse: (course, detailsEl) => { void this.loadCourseSections(course, detailsEl); },
+			onExpandCourse: (course, detailsEl) => this.loadCourseSections(course, detailsEl),
 			onFileClick: (filename, fileurl) => { void this.handleFileClick(filename, fileurl); },
 			onCourseRename: (courseId, newName) => { void this.handleCourseRename(courseId, newName); },
 			onCourseHide: (courseId, hidden) => { void this.handleCourseHide(courseId, hidden); },
@@ -130,9 +130,21 @@ export class MoodleView extends ItemView {
 			renderSections(contentEl, sections, (filename, fileurl) => { void this.handleFileClick(filename, fileurl); });
 		} catch (e) {
 			contentEl.empty();
-			contentEl.createEl('p', { text: `Error: ${(e as Error).message}`, cls: 'moodle-error' });
+			if (e instanceof MoodleTokenError) {
+				await this.clearStaleToken();
+				contentEl.createEl('p', { text: 'Session expired. Log in again.', cls: 'moodle-error' });
+			} else {
+				contentEl.createEl('p', { text: `Error: ${(e as Error).message}`, cls: 'moodle-error' });
+			}
 			new Notice(`Moodle: failed to load ${course.fullname}`);
 		}
+	}
+
+	/** Clear an expired/invalid token so the next action triggers a fresh login. */
+	private async clearStaleToken(): Promise<void> {
+		this.plugin.settings.wstoken = '';
+		this.plugin.settings.userId = 0;
+		await this.plugin.saveSettings();
 	}
 
 	private async handleCourseRename(courseId: number, newName: string): Promise<void> {
@@ -163,20 +175,29 @@ export class MoodleView extends ItemView {
 		const activeFile = this.app.workspace.getActiveFile();
 		const folder = activeFile?.parent?.path ?? '';
 
-		const targetPath = normalizePath(folder ? `${folder}/${filename}` : filename);
+		// Use only the basename — a server-supplied filename must never be able
+		// to escape the target folder via path separators or `..`.
+		let safeName = filename.split(/[/\\]/).pop() ?? '';
+		safeName = safeName.replace(/^\.+/, '').trim();
+		if (!safeName) {
+			new Notice(`Invalid filename: ${filename}`);
+			return;
+		}
+
+		const targetPath = normalizePath(folder ? `${folder}/${safeName}` : safeName);
 
 		if (vault.getAbstractFileByPath(targetPath)) {
-			new Notice(`Already exists: ${filename}`);
+			new Notice(`Already exists: ${safeName}`);
 			return;
 		}
 
 		try {
-			new Notice(`Downloading ${filename}…`);
+			new Notice(`Downloading ${safeName}…`);
 			const data = await downloadFile(wstoken, fileurl);
 			await vault.createBinary(targetPath, data);
-			new Notice(`Saved: ${filename}`);
+			new Notice(`Saved: ${safeName}`);
 		} catch (e) {
-			new Notice(`Failed to download ${filename}: ${(e as Error).message}`);
+			new Notice(`Failed to download ${safeName}: ${(e as Error).message}`);
 		}
 	}
 }
