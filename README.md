@@ -1,90 +1,112 @@
-# Obsidian Sample Plugin
+# Moodle Courses
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+An [Obsidian](https://obsidian.md) plugin that lets you browse your RWTH Aachen
+Moodle courses and their documents in a sidebar tree, and download files
+straight into your vault.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+> **Note:** This plugin is built specifically for the RWTH Aachen Moodle
+> instance (`moodle.rwth-aachen.de`) and its Shibboleth single sign-on flow.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+## Features
 
-## First time developing plugins?
+- **Course sidebar** – browse all the courses you are enrolled in as a
+  collapsible tree of sections, activities, and files.
+- **RWTH SSO login** – authenticates through the RWTH single sign-on flow,
+  including two-factor authentication (TOTP).
+- **Automatic or manual 2FA** – store your TOTP secret to generate codes
+  automatically, or leave it empty to be prompted for a code on each login.
+- **Download into your vault** – click a file to download it directly into your
+  Obsidian vault.
+- **Hide and rename courses** – hide courses you don't care about (with a toggle
+  to show them again) and give courses custom display names via the right-click
+  menu.
+- **Refresh** – reload the course list and contents on demand.
 
-Quick starting guide for new plugin devs:
+## Installation
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+### Manual
 
-## Releasing new releases
+1. Download `main.js`, `manifest.json`, and `styles.css` from the
+   [latest release](https://github.com/koproductions-code/obsidian_moodle/releases).
+2. Copy them into your vault under
+   `<Vault>/.obsidian/plugins/moodle-courses/`.
+3. Reload Obsidian and enable **Moodle Courses** under
+   **Settings → Community plugins**.
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+### From source
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
-
-## Adding your plugin to the community plugin list
-
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
-
-## How to use
-
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
-
-## Manually installing the plugin
-
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
-
-## Improve code quality with eslint
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+```bash
+git clone https://github.com/koproductions-code/obsidian_moodle.git
+cd obsidian_moodle
+npm install
+npm run build
 ```
 
-If you have multiple URLs, you can also do:
+Then copy `main.js`, `manifest.json`, and `styles.css` into
+`<Vault>/.obsidian/plugins/moodle-courses/`.
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
+## Setup
+
+1. Open **Settings → Moodle Courses**.
+2. Fill in your **RWTH SSO credentials**:
+   - **Username** – your RWTH single sign-on username (e.g. `ab123456`).
+   - **Password** – your RWTH password.
+   - **TOTP serial number** – the serial of your TOTP token, found at
+     [idm.rwth-aachen.de/selfservice/MFATokenManager](https://idm.rwth-aachen.de/selfservice/MFATokenManager).
+   - **TOTP secret** *(optional)* – if set, login codes are generated
+     automatically. Leave it empty to enter a code manually each time.
+3. Click **Login**. Once connected, the settings page shows
+   *Connected to moodle.rwth-aachen.de*.
+
+You can disconnect at any time with the **Disconnect** button, which clears the
+stored session.
+
+## Usage
+
+- Click the **graduation cap** ribbon icon, or run **Open courses sidebar** from
+  the command palette, to open the course tree.
+- Run **Login to RWTH Moodle** from the command palette to authenticate without
+  opening the sidebar.
+- In the sidebar:
+  - Expand a course to load its sections and files.
+  - Click a file to download it into your vault.
+  - Use the eye toggle in the header to show or hide hidden courses.
+  - Use the refresh button to reload courses and contents.
+  - Right-click a course name to rename or hide it.
+
+## Privacy
+
+Your credentials and session token are stored locally in the plugin's settings
+data inside your vault. The plugin communicates **only** with
+`moodle.rwth-aachen.de` (and the RWTH SSO endpoints required for login). No data
+is sent anywhere else and there is no telemetry.
+
+The SSO authentication flow is adapted from the
+[syncmymoodle](https://github.com/Romern/syncmymoodle) project.
+
+## Development
+
+```bash
+npm install      # install dependencies
+npm run dev      # build in watch mode
+npm run build    # production build (type-check + bundle)
+npm run lint     # run ESLint
 ```
 
-## API Documentation
+Source lives in `src/`:
 
-See https://docs.obsidian.md
+| File             | Responsibility                                  |
+| ---------------- | ----------------------------------------------- |
+| `main.ts`        | Plugin lifecycle, commands, ribbon icon, login  |
+| `settings.ts`    | Settings interface, defaults, and settings tab  |
+| `RWTHAuth.ts`    | RWTH Shibboleth SSO authentication flow         |
+| `MoodleApi.ts`   | Moodle web-service API calls and file downloads |
+| `MoodleView.ts`  | The sidebar view                                |
+| `MoodleTree.ts`  | Rendering the course/section/file tree          |
+| `TotpModal.ts`   | Prompt for a TOTP code                          |
+| `totp.ts`        | TOTP code generation                            |
+| `httpClient.ts`  | HTTP client with cookie handling                |
+
+## License
+
+See [LICENSE](LICENSE).
