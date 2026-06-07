@@ -187,10 +187,10 @@ async function extractWsToken(client: HttpClient): Promise<string> {
 
 	const resp = await client.get(
 		`${MOODLE_BASE}/admin/tool/mobile/launch.php?${params.toString()}`,
-		false, // Do NOT follow redirects — the redirect goes to moodlemobile:// scheme
+		false, // Don't follow — redirect goes to moodlemobile:// scheme
 	);
 
-	const location = resp.headers.location;
+	const location = resp.headers['location'];
 	if (!location) {
 		throw new Error('Mobile launch page did not return a redirect. Is the mobile app service enabled?');
 	}
