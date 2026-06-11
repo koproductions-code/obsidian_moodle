@@ -1,7 +1,7 @@
 {
 	"id": "moodle-courses",
 	"name": "Moodle Courses",
-	"version": "1.1.0",
+	"version": "1.2.0",
 	"minAppVersion": "0.15.0",
 	"description": "Browse Moodle course documents in a sidebar tree.",
 	"author": "koproductions",
