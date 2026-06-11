@@ -100,6 +100,30 @@ details.moodle-course-hidden {
 	opacity: 0.5;
 }
 
+.moodle-map-btn {
+	background: none;
+	border: none;
+	cursor: pointer;
+	font-size: 0.8em;
+	padding: 0 4px;
+	opacity: 0;
+	transition: opacity 0.15s;
+	flex-shrink: 0;
+}
+
+summary:hover > .moodle-map-btn {
+	opacity: 0.55;
+}
+
+.moodle-map-btn.moodle-map-active,
+summary:hover > .moodle-map-btn.moodle-map-active {
+	opacity: 1;
+}
+
+.moodle-map-btn:hover {
+	opacity: 1 !important;
+}
+
 details.moodle-section {
 	margin: 2px 0 2px 12px;
 }
@@ -111,11 +135,23 @@ details.moodle-section > summary.moodle-section-summary {
 	border-radius: 4px;
 	color: var(--text-muted);
 	font-size: 0.9em;
+	display: flex;
+	align-items: center;
 }
 
 details.moodle-section > summary.moodle-section-summary::before {
 	content: '▶ ';
 	font-size: 0.65em;
+	flex-shrink: 0;
+	margin-right: 2px;
+}
+
+.moodle-section-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 details.moodle-section[open] > summary.moodle-section-summary::before {

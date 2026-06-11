@@ -2,6 +2,12 @@ import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import MoodlePlugin from './main';
 import { CookieJar } from './httpClient';
 
+/** A course/section/folder → vault folder download mapping. `label` is kept for the settings list. */
+export interface FolderMapping {
+	path: string;
+	label: string;
+}
+
 export interface MoodlePluginSettings {
 	username: string;
 	password: string;
@@ -13,6 +19,7 @@ export interface MoodlePluginSettings {
 	sessionKey: string;
 	courseRenames: Record<string, string>; // courseId → custom display name
 	hiddenCourses: Record<string, boolean>; // courseId → true if user-hidden
+	folderMappings: Record<string, FolderMapping>; // node key → vault download folder
 }
 
 export const DEFAULT_SETTINGS: MoodlePluginSettings = {
@@ -26,6 +33,7 @@ export const DEFAULT_SETTINGS: MoodlePluginSettings = {
 	sessionKey: '',
 	courseRenames: {},
 	hiddenCourses: {},
+	folderMappings: {},
 };
 
 export class MoodleSettingTab extends PluginSettingTab {
@@ -128,6 +136,8 @@ export class MoodleSettingTab extends PluginSettingTab {
 					}
 				}));
 
+		this.renderFolderMappings(containerEl);
+
 		if (this.plugin.settings.wstoken) {
 			containerEl.createEl('hr');
 			new Setting(containerEl)
@@ -140,6 +150,33 @@ export class MoodleSettingTab extends PluginSettingTab {
 						this.plugin.settings.wstoken = '';
 						this.plugin.settings.userId = 0;
 						this.plugin.settings.cookies = {};
+						await this.plugin.saveSettings();
+						this.display();
+					}));
+		}
+	}
+
+	private renderFolderMappings(containerEl: HTMLElement): void {
+		new Setting(containerEl).setName('Download folders').setHeading();
+
+		const entries = Object.entries(this.plugin.settings.folderMappings);
+		if (entries.length === 0) {
+			new Setting(containerEl).setDesc(
+				'No folders mapped yet. In the Moodle courses sidebar, hover a course, '
+				+ 'section, or folder and click the 📁 button to choose where its files download to.',
+			);
+			return;
+		}
+
+		for (const [key, mapping] of entries) {
+			new Setting(containerEl)
+				.setName(mapping.label)
+				.setDesc(`→ ${mapping.path}`)
+				.addExtraButton(btn => btn
+					.setIcon('trash')
+					.setTooltip('Remove mapping')
+					.onClick(async () => {
+						delete this.plugin.settings.folderMappings[key];
 						await this.plugin.saveSettings();
 						this.display();
 					}));

@@ -1,6 +1,15 @@
 import { ItemView, Notice, WorkspaceLeaf, normalizePath } from 'obsidian';
 import { MoodleCourse, MoodleSection, getCourses, getCourseContents, downloadFile, MoodleTokenError } from './MoodleApi';
-import { buildCourseTree, renderSections } from './MoodleTree';
+import {
+	buildCourseTree,
+	renderSections,
+	FileLocation,
+	RenderCtx,
+	mappingKeyForCourse,
+	mappingKeyForSection,
+	mappingKeyForModule,
+} from './MoodleTree';
+import { promptFolderMapping } from './FolderMapModal';
 import MoodlePlugin from './main';
 
 export const MOODLE_VIEW_TYPE = 'moodle-courses';
@@ -111,12 +120,26 @@ export class MoodleView extends ItemView {
 		buildCourseTree(this.treeEl, this.courses, this.sectionsMap, {
 			courseRenames: this.plugin.settings.courseRenames,
 			hiddenCourses: this.plugin.settings.hiddenCourses,
+			folderMappings: this.plugin.settings.folderMappings,
 			showHidden: this.showHidden,
 			onExpandCourse: (course, detailsEl) => this.loadCourseSections(course, detailsEl),
-			onFileClick: (filename, fileurl) => { void this.handleFileClick(filename, fileurl); },
+			onFileClick: (filename, fileurl, location) => { void this.handleFileClick(filename, fileurl, location); },
 			onCourseRename: (courseId, newName) => { void this.handleCourseRename(courseId, newName); },
 			onCourseHide: (courseId, hidden) => { void this.handleCourseHide(courseId, hidden); },
+			onConfigureMapping: (key, label) => this.handleConfigureMapping(key, label),
 		});
+	}
+
+	/** Build the render context (callbacks + mappings) for a course's sections. */
+	private renderCtx(course: MoodleCourse): RenderCtx {
+		const displayName = this.plugin.settings.courseRenames[String(course.id)] ?? course.fullname;
+		return {
+			location: { courseId: course.id },
+			labelPath: [displayName],
+			onFileClick: (filename, fileurl, location) => { void this.handleFileClick(filename, fileurl, location); },
+			folderMappings: this.plugin.settings.folderMappings,
+			onConfigureMapping: (key, label) => this.handleConfigureMapping(key, label),
+		};
 	}
 
 	private async loadCourseSections(course: MoodleCourse, detailsEl: HTMLDetailsElement): Promise<void> {
@@ -127,7 +150,7 @@ export class MoodleView extends ItemView {
 		try {
 			const sections = await getCourseContents(wstoken, course.id);
 			this.sectionsMap.set(course.id, sections);
-			renderSections(contentEl, sections, (filename, fileurl) => { void this.handleFileClick(filename, fileurl); });
+			renderSections(contentEl, sections, this.renderCtx(course));
 		} catch (e) {
 			contentEl.empty();
 			if (e instanceof MoodleTokenError) {
@@ -145,6 +168,58 @@ export class MoodleView extends ItemView {
 		this.plugin.settings.wstoken = '';
 		this.plugin.settings.userId = 0;
 		await this.plugin.saveSettings();
+	}
+
+	/** Most-specific mapping wins: folder → section → course. Returns null if none. */
+	private resolveTargetFolder(location: FileLocation): string | null {
+		const m = this.plugin.settings.folderMappings;
+		const keys: string[] = [];
+		if (location.moduleId !== undefined) keys.push(mappingKeyForModule(location.moduleId));
+		if (location.sectionId !== undefined) keys.push(mappingKeyForSection(location.sectionId));
+		keys.push(mappingKeyForCourse(location.courseId));
+
+		for (const key of keys) {
+			const path = m[key]?.path;
+			if (path) return path;
+		}
+		return null;
+	}
+
+	/** Create a vault folder (and any missing parents) if it doesn't exist yet. */
+	private async ensureFolder(path: string): Promise<void> {
+		const normalized = normalizePath(path);
+		if (!normalized || normalized === '/') return;
+		let cur = '';
+		for (const part of normalized.split('/')) {
+			if (!part) continue;
+			cur = cur ? `${cur}/${part}` : part;
+			if (!this.app.vault.getAbstractFileByPath(cur)) {
+				try {
+					await this.app.vault.createFolder(cur);
+				} catch {
+					// already exists or a concurrent create — ignore
+				}
+			}
+		}
+	}
+
+	private async handleConfigureMapping(key: string, label: string): Promise<{ path: string | null } | null> {
+		const current = this.plugin.settings.folderMappings[key]?.path;
+		const result = await promptFolderMapping(this.app, label, current);
+		if (result === null) return null; // cancelled
+
+		if (result.path === null) {
+			delete this.plugin.settings.folderMappings[key];
+		} else {
+			this.plugin.settings.folderMappings[key] = { path: result.path, label };
+			try {
+				await this.ensureFolder(result.path);
+			} catch {
+				// folder creation deferred to download time
+			}
+		}
+		await this.plugin.saveSettings();
+		return result;
 	}
 
 	private async handleCourseRename(courseId: number, newName: string): Promise<void> {
@@ -168,12 +243,9 @@ export class MoodleView extends ItemView {
 		this.renderTree();
 	}
 
-	private async handleFileClick(filename: string, fileurl: string): Promise<void> {
+	private async handleFileClick(filename: string, fileurl: string, location: FileLocation): Promise<void> {
 		const { wstoken } = this.plugin.settings;
 		const vault = this.app.vault;
-
-		const activeFile = this.app.workspace.getActiveFile();
-		const folder = activeFile?.parent?.path ?? '';
 
 		// Use only the basename — a server-supplied filename must never be able
 		// to escape the target folder via path separators or `..`.
@@ -182,6 +254,23 @@ export class MoodleView extends ItemView {
 		if (!safeName) {
 			new Notice(`Invalid filename: ${filename}`);
 			return;
+		}
+
+		// A configured mapping (folder > section > course) wins; otherwise fall
+		// back to the folder of the active note.
+		const mapped = this.resolveTargetFolder(location);
+		let folder: string;
+		if (mapped !== null) {
+			folder = mapped;
+			try {
+				await this.ensureFolder(folder);
+			} catch (e) {
+				new Notice(`Could not create folder ${folder}: ${(e as Error).message}`);
+				return;
+			}
+		} else {
+			const activeFile = this.app.workspace.getActiveFile();
+			folder = activeFile?.parent?.path ?? '';
 		}
 
 		const targetPath = normalizePath(folder ? `${folder}/${safeName}` : safeName);

@@ -17,6 +17,9 @@ straight into your vault.
   automatically, or leave it empty to be prompted for a code on each login.
 - **Download into your vault** – click a file to download it directly into your
   Obsidian vault.
+- **Map folders** – assign any course, section, or Moodle folder to a vault
+  folder; files downloaded from it (and anything nested, unless it has its own
+  mapping) land there automatically.
 - **Hide and rename courses** – hide courses you don't care about (with a toggle
   to show them again) and give courses custom display names via the right-click
   menu.
@@ -70,6 +73,11 @@ stored session.
 - In the sidebar:
   - Expand a course to load its sections and files.
   - Click a file to download it into your vault.
+  - Hover a course, section, or folder and click the **📁** button to map it to
+    a vault folder — downloads from it then go there instead of next to the
+    active note. The most specific mapping wins (folder over section over
+    course). Manage or remove mappings under **Settings → Moodle Courses →
+    Download folders**.
   - Use the eye toggle in the header to show or hide hidden courses.
   - Use the refresh button to reload courses and contents.
   - Right-click a course name to rename or hide it.
